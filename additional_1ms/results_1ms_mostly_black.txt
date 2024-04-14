@@ -1,0 +1,2 @@
+Mean: .06546000000000000000 seconds
+Standard Deviation: .01175365475075731497 seconds

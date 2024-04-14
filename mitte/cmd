@@ -1,0 +1,65 @@
+#!/bin/bash
+
+# Define the input file
+INPUT="mid_1ms"
+# Define the number of iterations
+NUMBER_OF_ITERATIONS=100
+# Define the output file for timing information
+OUTPUT_TIME_FILE="results_$INPUT.txt"
+
+# Initialize an array to hold the real times
+declare -a real_times
+
+# Create a single temporary file for capturing the 'real' time
+TEMP_TIME_FILE="times.tmp"
+
+#trunctuate file
+> times_$INPUT.txt
+
+# Main loop to run FFmpeg and capture timings
+for i in $(seq 1 $NUMBER_OF_ITERATIONS); do
+    (time ffmpeg \
+        -i "$INPUT.mp4" \
+        -c:v libx264 -preset ultrafast -tune zerolatency -crf 23 \
+        -vf "drawtext=fontfile=/usr/share/fonts/truetype/freefont/FreeMonoBold.ttf:text='%{localtime\\:%X.%N}':fontcolor=white@0.8:fontsize=36:x=7:y=7" \
+        -an \
+        -f mp4 -movflags cmaf+separate_moof+delay_moov+skip_trailer \
+        -frag_duration 1 \
+        -y output.mp4) &> /dev/null 2>> "$TEMP_TIME_FILE"
+done
+
+# Process each 'real' time recorded in the temporary file
+while read -r line; do
+    if [[ $line == real* ]]; then
+        REAL_TIME=$(echo "$line" | awk '{print $2}')
+        MINUTES=$(sed -E 's/([0-9]+)m[0-9]+.[0-9]+s/\1/' <<< $REAL_TIME)
+        SECONDSS=$(sed -E 's/[0-9]+m([0-9]+\.[0-9]+)s/\1/' <<< $REAL_TIME)
+        TOTAL_SECONDS=$(echo "$MINUTES * 60 + $SECONDSS" | bc)
+        real_times+=($TOTAL_SECONDS)
+        echo $TOTAL_SECONDS >> times_$INPUT.txt
+    fi
+done < "$TEMP_TIME_FILE"
+
+# Calculate mean and standard deviation (calculation part remains the same)
+SUM=0
+SUMSQ=0
+for val in "${real_times[@]}"; do
+    SUM=$(echo "$SUM + $val" | bc)
+done
+MEAN=$(echo "$SUM / $NUMBER_OF_ITERATIONS" | bc -l)
+
+for val in "${real_times[@]}"; do
+    SUMSQ=$(echo "$SUMSQ + ($val - $MEAN)^2" | bc)
+done
+STD_DEV=$(echo "sqrt($SUMSQ / $NUMBER_OF_ITERATIONS)" | bc -l)
+
+
+# Output the results to a file
+echo "Mean: $MEAN seconds" > "$OUTPUT_TIME_FILE"
+echo "Standard Deviation: $STD_DEV seconds" >> "$OUTPUT_TIME_FILE"
+
+# Display the path to the results file
+echo "Timing results saved to: $OUTPUT_TIME_FILE"
+
+# Clean up the temporary file after processing
+rm "$TEMP_TIME_FILE"

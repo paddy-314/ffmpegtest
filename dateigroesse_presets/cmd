@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# Definiere die Eingabedatei
+INPUT="/Users/patrick/Documents/Github_Projects/Hochschule/ffmpegtest/dateigroesse_presets/source.mp4"
+RESULTS_FILE="results.csv"
+
+# Kopfzeile der CSV-Datei
+echo "Preset,CRF,FileSize,Bitrate,Speed" > "$RESULTS_FILE"
+
+# Liste der zu testenden Presets
+presets=("ultrafast" "superfast" "veryfast" "faster" "fast" "medium" "slow" "slower" "veryslow")
+
+# Temporäre Log-Datei für ffmpeg-Ausgabe
+LOG_FILE="ffmpeg_log.txt"
+
+# Schleife über alle Presets
+for preset in "${presets[@]}"; do
+    # Schleife über CRF-Werte von 17 bis 28
+    for crf in {17..28}; do
+        output_file="output_${preset}_crf${crf}.mp4"
+
+        echo "Kodiere mit Preset $preset und CRF $crf"
+        ffmpeg -an -i "$INPUT" \
+            -c:v libx264 -preset "$preset" -tune zerolatency -crf "$crf" \
+            -y "$output_file" 2>&1 | tee "$LOG_FILE"
+
+        # Extrahiere die Speed-Information aus der Log-Datei und entferne das Präfix "speed=" sowie das "x" am Ende
+        speed=$(grep "speed=" "$LOG_FILE" | tail -1 | awk '{print $(NF)}' | sed 's/speed=//g' | sed 's/x//g')
+
+        # Auslesen der Dateigröße in Bytes und Umrechnung in Megabytes
+        filesize=$(stat -f %z "$output_file")
+        filesize_mb=$(echo "scale=2; $filesize/1024/1024" | bc)
+
+        # Auslesen der Bitrate in bits/s und Umrechnung in Mbit/s
+        bitrate=$(ffprobe -v error -select_streams v:0 -show_entries format=bit_rate -of default=noprint_wrappers=1:nokey=1 "$output_file")
+        bitrate_kbps=$(echo "scale=2; $bitrate/1000" | bc)
+
+        # Speichern der Ergebnisse in der CSV-Datei
+        echo "$preset,$crf,$filesize_mb,$bitrate_kbps,$speed" >> "$RESULTS_FILE"
+
+        # Lösche das komprimierte Video
+        rm "$output_file"
+    done
+done
+
+# Lösche die temporäre Log-Datei
+rm "$LOG_FILE"
+
+echo "Tests abgeschlossen."

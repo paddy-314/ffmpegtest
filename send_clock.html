@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+
+<body>
+    <div id="clock" style="color: black; font-size: 100pt; background: white;"></div>
+</body>
+<script>
+    var clock = document.getElementById("clock");
+    window.onload = (function () {
+        (function update() {
+            var now = new Date();
+            var timeString = 'sent at: ' + 
+            				 now.getHours().toString().padStart(2, '0') + ':' +
+                             now.getMinutes().toString().padStart(2, '0') + ':' +
+                             now.getSeconds().toString().padStart(2, '0') + '.' +
+                             now.getMilliseconds().toString().padStart(3, '0');
+            clock.innerHTML = timeString;
+            setTimeout(update, 0);
+        })();
+    })();
+</script>
